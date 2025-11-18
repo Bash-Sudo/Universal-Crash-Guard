@@ -1,4 +1,4 @@
-# RBR Universal Crash Guard
+# RBR Universal Crash Guard [Development]
 
 *A plug-and-play safety layer for Arma Reforger servers that protects against bad mod behavior, runaway loops, and VM crashes — without relying on mod authors to fix their code.*
 
@@ -11,7 +11,8 @@
 
 ## Overview
 The **RBR Universal Crash Guard** provides a universal safety net for Reforger servers running multiple mods. It catches bad behavior, prevents infinite loops, monitors global frame usage, and logs detailed information administrators can use to identify problem mods — all without requiring updates from mod authors.
-
+### THIS IS A WiP & Currently in Development!
+> This is meant for testing on live servers for framework and compatibility. Please report bugs here in Github thanks!
 ---
 ## Why This Exists
 Servers running many community mods often face instability from:
