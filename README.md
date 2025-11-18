@@ -25,7 +25,8 @@ Crash Guard functions like a seatbelt — catching failures before they take the
 
 ---
 ## Installation
-
+If you wish to contribute I have the mod listed below. (its private atm for development) 
+> *I am not very good with C# so be gentel, this is still in its infancy lol!*
 ### **Server Installation**
 *Currently the mod is private while in development* 
 1. Add the mod entry to the **TOP** of your server’s modlist JSON.
@@ -104,4 +105,5 @@ Arama Reforger and its associated assets are trademarks of Bohemia Interactive. 
 Would like to thank the Rubber Band Rangers Dev Team along with:
 - LoneStarActual [BTGG] 
 - Rouge [RES] 
-- Brooks [OG] 
+- Brooks [OG]
+> **Thank you for helping with the development and testing for this project!**
