@@ -40,6 +40,7 @@ Crash Guard functions like a seatbelt — catching failures before they take the
    **[CrashShield] Universal SafeGuard loaded.**
 
 ### **Optional Setup**
+> Not implimented yet - Still working on proper logging
 - Create custom guards inside `SafePatches.c` if you encounter a misbehaving mod.
 - Use the included templates to add loop caps, null-checks, and safety wrappers.
 ---
