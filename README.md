@@ -99,7 +99,7 @@ Ways to contribute:
 4. Submit a pull request  
 ---
 ## License
-Arama Reforger and its associated assets are trademarks of Bohemia Interactive. APL License applies to this project.
+Arama Reforger and its associated assets are trademarks of Bohemia Interactive. APL-ND License applies to this project while in development.
 ---
 ## Credits
 Would like to thank the Rubber Band Rangers Dev Team along with:
