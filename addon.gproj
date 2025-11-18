@@ -1,0 +1,22 @@
+GameProject {
+ ID "RBR_Universal_Crash_Guard"
+ GUID "66E3474D783F309A"
+ TITLE "RBR Universal Crash Guard"
+ Dependencies {
+  "58D0FB3206B6F859"
+ }
+ Configurations {
+  GameProjectConfig PC {
+  }
+  GameProjectConfig XBOX_ONE {
+  }
+  GameProjectConfig XBOX_SERIES {
+  }
+  GameProjectConfig PS4 {
+  }
+  GameProjectConfig PS5 {
+  }
+  GameProjectConfig HEADLESS {
+  }
+ }
+}
