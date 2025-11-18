@@ -1,111 +1,90 @@
 // CrashGuard_CSI_Patches.c
-// Patches for CSI_PlayerDataManager / CSI_PlayerData to prevent
-// NULL-pointer VM crashes and log useful info into CrashGuard.log.
+// Safety patches for CSI_PlayerDataManager to avoid NULL m_iPlayerID crashes
+// and to give CrashGuard visibility into bad player data entries.
 
 modded class CSI_PlayerDataManager : ScriptComponent
 {
-	// ------------------------------------------------------------------------
-	//  Helper: central CSI logging hook
-	// ------------------------------------------------------------------------
-	protected void CrashGuard_LogCSI(string context, string reason)
-	{
-		// Goes into CrashGuard.log (implemented in CrashGuard_Log.c)
-		CrashGuard_LogGlobal(
-			"CSI_PlayerDataManager",
-			context,
-			reason
-		);
-	}
+    // Helper: log a simple guard entry for CSI problems
+    protected void CrashGuard_LogCSI(string reason)
+    {
+        CrashGuard_LogGuard("CSI_PlayerDataManager", reason, this, null);
+    }
 
-	// ------------------------------------------------------------------------
-	//  Helper: validate / repair the internal player data map
-	//  - removes null entries
-	//  - repairs bad IDs (where stored ID != key)
-	// ------------------------------------------------------------------------
-	protected void CheckPlayerDataValidity()
-	{
-		int count = m_mPlayerDataMap.Count();
-		if (count <= 0)
-			return;
+    // Helper: log with extra detail (e.g. playerID)
+    protected void CrashGuard_LogCSIPlayer(string label, int playerID)
+    {
+        string reason = string.Format("%1 for playerID=%2", label, playerID);
+        CrashGuard_LogGuard("CSI_PlayerDataManager", reason, this, null);
+    }
 
-		// iterate backwards so Remove() is always safe
-		for (int i = count - 1; i >= 0; i--)
-		{
-			int playerID = m_mPlayerDataMap.GetKeyByIndex(i);
-			CSI_PlayerData data = m_mPlayerDataMap.Get(playerID);
+    // ---------------------------------------------------------------------
+    // Map health check: cleans NULL entries and fixes mismatched IDs
+    // Called from GlobalLoopGuard when a runaway frame is detected, and can
+    // also be called manually if needed.
+    // ---------------------------------------------------------------------
+    void CheckPlayerDataValidity()
+    {
+        if (!m_mPlayerDataMap)
+            return;
 
-			// null entry – remove it
-			if (!data)
-			{
-				CrashGuard_LogCSI(
-					"CheckPlayerDataValidity",
-					string.Format("Removed NULL CSI_PlayerData entry for playerID=%1", playerID)
-				);
+        int count = m_mPlayerDataMap.Count();
+        if (count <= 0)
+            return;
 
-				m_mPlayerDataMap.Remove(playerID);
-				continue;
-			}
+        // Iterate backwards so Remove() is always safe
+        for (int i = count - 1; i >= 0; i--)
+        {
+            int key = m_mPlayerDataMap.GetKey(i);
+            CSI_PlayerData data = m_mPlayerDataMap.GetElement(i);
 
-			// mismatch between key and stored ID – repair it
-			int internalID = data.GetPlayerID();
-			if (internalID != playerID)
-			{
-				CrashGuard_LogCSI(
-					"CheckPlayerDataValidity",
-					string.Format("ID mismatch | mapKey=%1 | m_iPlayerID=%2 – repairing stored ID",
-						playerID, internalID)
-				);
+            // Remove NULL entries
+            if (!data)
+            {
+                CrashGuard_LogCSIPlayer("Removed NULL CSI_PlayerData entry", key);
+                m_mPlayerDataMap.Remove(key);
+                continue;
+            }
 
-				data.SetPlayerID(playerID);
-			}
+            // Repair mismatched IDs (map key vs stored m_iPlayerID)
+            int internalID = data.GetPlayerID();
+            if (internalID != key)
+            {
+                string msg = string.Format(
+                    "Mismatched m_iPlayerID detected: mapKey=%1, m_iPlayerID=%2 – repairing stored ID",
+                    key,
+                    internalID
+                );
+                CrashGuard_LogGuard("CSI_PlayerDataManager", msg, data, null);
 
-			// future invariants (icon, rank etc.) can be checked here
-		}
-	}
+                // Force stored ID to match the map key
+                data.SetPlayerID(key);
+            }
+        }
+    }
 
-	// ------------------------------------------------------------------------
-	//  Safe DataUpdate override
-	//  - blocks NULL playerData
-	//  - logs what happened
-	//  - calls original RPC so CSI still works
-	// ------------------------------------------------------------------------
-	override protected void DataUpdate(CSI_PlayerData playerData)
-	{
-		// NULL guard – this is what was blowing up in the VM
-		if (!playerData)
-		{
-			CrashGuard_LogCSI(
-				"DataUpdate",
-				"DataUpdate called with NULL playerData (blocked, CSI call skipped)"
-			);
-			return;
-		}
+    // ---------------------------------------------------------------------
+    // Safe DataUpdate override
+    // Blocks obviously bad data before it reaches CSI’s original logic.
+    // ---------------------------------------------------------------------
+    override protected void DataUpdate(CSI_PlayerData playerData)
+    {
+        // Null guard – this was one of the crash paths in your VM logs
+        if (!playerData)
+        {
+            CrashGuard_LogCSI("DataUpdate called with NULL playerData (blocked)");
+            return;
+        }
 
-		int playerID = playerData.GetPlayerID();
+        int playerID = playerData.GetPlayerID();
 
-		// basic log so we can correlate with CrashGuard.log later
-		CrashGuard_LogCSI(
-			"DataUpdate",
-			string.Format("Safe DataUpdate for playerID=%1", playerID)
-		);
+        // Invalid or uninitialized IDs cause serialization / RPC issues
+        if (playerID <= 0)
+        {
+            CrashGuard_LogCSIPlayer("DataUpdate blocked due to invalid m_iPlayerID", playerID);
+            return;
+        }
 
-		// let the original behaviour run so CSI continues to function
-		RpcDo_PlayerDataUpdate(playerData);
-		Rpc(RpcDo_PlayerDataUpdate, playerData);
-	}
-
-	// ------------------------------------------------------------------------
-	// Optional: hook from your GlobalLoopGuard or a debug button
-	// ------------------------------------------------------------------------
-	void CrashGuard_DebugCheckCSI()
-	{
-		CheckPlayerDataValidity();
-	}
-}
-
-// ------------------------------------------------------------------------
-// If you also added Extract / Inject patches earlier and want them kept,
-// you can leave them in this same file *below* the class above.
-// The important change for this compile error is the new
-// CheckPlayerDataValidity() implementation.
-// ------------------------------------------------------------------------
+        // Everything looks sane – hand off to original CSI logic
+        super.DataUpdate(playerData);
+    }
+};

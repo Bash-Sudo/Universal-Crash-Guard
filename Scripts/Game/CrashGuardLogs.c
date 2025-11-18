@@ -1,102 +1,140 @@
-// scripts/Game/CrashGuardLog.c
-// ------------------------------------------------------------
-// Plain-text logging for Crash Guard (Arma Reforger).
-// Writes to: $profile:CrashGuard.log
-// No HTML, just simple lines for easy parsing and sharing.
-// ------------------------------------------------------------
+// CrashGuardLog.c
+// Core logging helpers used by CrashGuard, GlobalLoopGuard and CSI patches.
+// NOTE: We only use Print / PrintFormat so this works in both Workbench and
+// dedicated server without relying on OpenFile / FPrintln / CloseFile.
 
+static const string CRASHGUARD_LOG_PATH = "$profile:CrashGuard.log"; // informational only
+
+// Internal flag so we print the header once
+static bool s_CrashGuardHeaderPrinted = false;
+
+//--------------------------------------------------------------------------
+// Ensure the banner/header is printed once into the normal game log
+//--------------------------------------------------------------------------
+static void CrashGuard_EnsureHeader()
+{
+    if (s_CrashGuardHeaderPrinted)
+        return;
+
+    Print("==== CrashGuard Log ====");
+    Print("Format:");
+    Print("  [GUARD]   Context | Reason | Instance | Owner");
+    Print("  [MONITOR] Context | Severity | Iterations | Instance | Owner");
+    Print("  [GLOBAL]  Context | Reason | FrameCount");
+    Print("==============================================");
+
+    s_CrashGuardHeaderPrinted = true;
+}
+
+//--------------------------------------------------------------------------
+// Single place where we actually emit the line
+//--------------------------------------------------------------------------
+static void CrashGuard_WriteLine(string line)
+{
+    CrashGuard_EnsureHeader();
+    Print(line);      // Goes to console + normal RPT/server log
+}
+
+//--------------------------------------------------------------------------
+// BASIC GUARD LOG
+// Used by SafePatch, loop guards, CSI patches, etc.
+//--------------------------------------------------------------------------
+void CrashGuard_LogGuard(string context, string reason, Class instance = null, IEntity owner = null)
+{
+    CrashGuard_EnsureHeader();
+
+    string instStr;
+    if (instance)
+        instStr = instance.ToString();
+    else
+        instStr = "null";
+
+    string ownerStr;
+    if (owner)
+        ownerStr = owner.ToString();
+    else
+        ownerStr = "null";
+
+    string line = string.Format(
+        "[GUARD] %1 | %2 | %3 | %4",
+        context,
+        reason,
+        instStr,
+        ownerStr
+    );
+
+    CrashGuard_WriteLine(line);
+}
+
+//--------------------------------------------------------------------------
+// MONITOR LOG
+// Used by CrashGuardMonitor / loop monitors to record iterations, etc.
+//--------------------------------------------------------------------------
+void CrashGuard_LogMonitor(string context, string severity, int iterations, Class instance = null, IEntity owner = null)
+{
+    CrashGuard_EnsureHeader();
+
+    string instStr;
+    if (instance)
+        instStr = instance.ToString();
+    else
+        instStr = "null";
+
+    string ownerStr;
+    if (owner)
+        ownerStr = owner.ToString();
+    else
+        ownerStr = "null";
+
+    string line = string.Format(
+        "[MONITOR] %1 | %2 | Iterations=%3 | %4 | %5",
+        context,
+        severity,
+        iterations,
+        instStr,
+        ownerStr
+    );
+
+    CrashGuard_WriteLine(line);
+}
+
+//--------------------------------------------------------------------------
+// GLOBAL FRAME GUARD LOG
+// Used by GlobalLoopGuard to flag runaway EOnFrame situations.
+//--------------------------------------------------------------------------
+void CrashGuard_LogGlobal(string context, string reason, int frameCount)
+{
+    CrashGuard_EnsureHeader();
+
+    string line = string.Format(
+        "[GLOBAL] %1 | %2 | FrameCount=%3",
+        context,
+        reason,
+        frameCount
+    );
+
+    CrashGuard_WriteLine(line);
+}
+
+//--------------------------------------------------------------------------
+// COMPAT WRAPPER CLASS
+// If any scripts still call CrashGuardLog.LogGuard/LogMonitor/LogGlobal,
+// this tiny class forwards those calls to the global helpers above.
+//--------------------------------------------------------------------------
 class CrashGuardLog
 {
-    protected static string s_FilePath = "$profile:CrashGuard.log";
-    protected static bool   s_Initialized;
-
-    // Ensure the log file exists and has a header
-    protected static void EnsureFile()
+    static void LogGuard(string context, string reason, Class instance = null, IEntity owner = null)
     {
-        if (s_Initialized)
-            return;
-
-        FileHandle fh = FileIO.OpenFile(s_FilePath, FileMode.WRITE);
-        if (!fh)
-        {
-            PrintFormat("[CrashGuardLog] ERROR: Failed to open '%1' for writing.", s_FilePath);
-            return;
-        }
-
-        fh.WriteLine("==== CrashGuard Log ====");
-        fh.WriteLine("Format:");
-        fh.WriteLine("  [GUARD]   Context | Reason | Instance | Owner");
-        fh.WriteLine("  [MONITOR] Context | Severity | Iterations | Instance | Owner");
-        fh.WriteLine("  [GLOBAL]  Context | Reason | FrameCount");
-        fh.WriteLine("===============================================");
-        fh.Close();
-
-        s_Initialized = true;
-        PrintFormat("[CrashGuardLog] Logging to '%1'", s_FilePath);
+        CrashGuard_LogGuard(context, reason, instance, owner);
     }
 
-    protected static void AppendLine(string line)
+    static void LogMonitor(string context, string severity, int iterations, Class instance = null, IEntity owner = null)
     {
-        EnsureFile();
-        if (!s_Initialized)
-            return; // failed to init
-
-        FileHandle fh = FileIO.OpenFile(s_FilePath, FileMode.APPEND);
-        if (!fh)
-        {
-            PrintFormat("[CrashGuardLog] ERROR: Could not append to '%1'", s_FilePath);
-            return;
-        }
-
-        fh.WriteLine(line);
-        fh.Close();
+        CrashGuard_LogMonitor(context, severity, iterations, instance, owner);
     }
 
-    // --------------------------------------------------------
-    // Public helpers used by SafeUtils / CrashGuardMonitor / GlobalLoopGuard
-    // --------------------------------------------------------
-
-    static void LogGuardSummary(string context, string reason)
+    static void LogGlobal(string context, string reason, int frameCount)
     {
-        string line = string.Format("[GUARD]   %1 | %2", context, reason);
-        AppendLine(line);
+        CrashGuard_LogGlobal(context, reason, frameCount);
     }
-
-    static void LogGuardDetail(string context, string reason, string instance, string owner)
-    {
-        string line = string.Format("[GUARD]   %1 | %2 | %3 | %4", context, reason, instance, owner);
-        AppendLine(line);
-    }
-
-    static void LogMonitorEvent(
-        string context,
-        string severity,
-        int iterations,
-        int maxIterations,
-        string instance,
-        string owner)
-    {
-        string line = string.Format(
-            "[MONITOR] %1 | %2 | %3/%4 | %5 | %6",
-            context,
-            severity,
-            iterations,
-            maxIterations,
-            instance,
-            owner
-        );
-        AppendLine(line);
-    }
-
-    // Global loop / frame-level events (EOnFrame watchdog)
-    static void LogGlobalEvent(string context, string reason, int frameCount)
-    {
-        string line = string.Format(
-            "[GLOBAL]  %1 | %2 | FrameCount=%3",
-            context,
-            reason,
-            frameCount
-        );
-        AppendLine(line);
-    }
-}
+};

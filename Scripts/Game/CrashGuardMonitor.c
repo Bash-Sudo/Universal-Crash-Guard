@@ -1,68 +1,24 @@
-// scripts/Game/CrashGuardMonitor.c
-// ------------------------------------------------------------
-// Console + file watchdog for loop warnings.
-// Called directly by SafeUtils.GuardLoop.
-// ------------------------------------------------------------
+// CrashGuardMonitor.c
+// Simple loop monitor used by SafePatch / loop guards.
+// It just turns "loop stopped" events into CrashGuard monitor log lines.
 
 class CrashGuardMonitor
 {
-    // Called from SafeUtils.GuardLoop when a loop is stopped.
-    static void RecordLoopIssue(
-        string context,
-        int iterations,
-        int maxIterations,
-        Class instance,
-        IEntity owner)
+    // Central entry point used by SafePatch (or other loop guards)
+    static void RecordLoopStop(string context, int iterations, Class instance = null, IEntity owner = null)
     {
-        // Determine severity (basic heuristic)
+        // Very simple severity scale based on iteration count
         string severity = "LOW";
 
-        float ratio = 0.0;
-        if (maxIterations > 0)
-        {
-            ratio = iterations / (maxIterations * 1.0);
-            if (ratio >= 5.0)
-                severity = "HIGH";
-            else if (ratio >= 2.0)
-                severity = "MED";
-        }
+        if (iterations > 1000000)
+            severity = "SEVERE";
+        else if (iterations > 200000)
+            severity = "MED";
 
-        // Convert instance
-        string instStr;
-        if (instance)
-            instStr = instance.ToString();
-        else
-            instStr = "null";
-
-        // Convert owner
-        string ownerStr;
-        if (owner)
-            ownerStr = owner.GetName();
-        else
-            ownerStr = "null";
-
-        // Console output
-        PrintFormat(
-            "[Crash Guard Monitor] Context=%1 | Severity=%2 | Iterations=%3/%4 | Instance=%5 | Owner=%6",
-            context,
-            severity,
-            iterations,
-            maxIterations,
-            instStr,
-            ownerStr
-        );
-
-        // File output
-        CrashGuardLog.LogMonitorEvent(
-            context,
-            severity,
-            iterations,
-            maxIterations,
-            instStr,
-            ownerStr
-        );
+        // Unified monitor logging helper (defined in CrashGuardLog.c)
+        CrashGuard_LogMonitor(context, severity, iterations, instance, owner);
     }
-}
+};
 
-// Ensure linker includes this class
+// Ensure linker keeps this class around even if only referenced statically
 static ref CrashGuardMonitor g_CrashGuardMonitor = new CrashGuardMonitor();

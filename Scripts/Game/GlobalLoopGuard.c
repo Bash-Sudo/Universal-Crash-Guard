@@ -1,54 +1,66 @@
-// =====================================================================
+// -------------------------------------------------------------------------
 // GlobalLoopGuard.c
-//  - Simple global per-frame loop guard
-//  - No external dependencies (only console logging)
-//  - Safe baseline to make the mod compile and run
-// =====================================================================
+// Simple global frame-loop guard used by CrashGuard.
+// Attach this as a game mode / script to have it active.
+// -------------------------------------------------------------------------
 
-// Required "entity class" for the game mode
-class GlobalLoopGuardClass : SCR_BaseGameModeClass {};
+// Forward declaration so we can call GetInstance()
+class CSI_PlayerDataManager;
 
-// Actual game mode implementation
+// Required entity-class wrapper for game mode
+class GlobalLoopGuardClass : SCR_BaseGameModeClass
+{
+};
+
+// GlobalLoopGuard implementation
 class GlobalLoopGuard : SCR_BaseGameMode
 {
-	// Global frame counter for this game-mode instance
-	static int s_GlobalLoopCounter = 0;
+    // Global frame counter for this game-mode instance
+    static int s_GlobalLoopCounter = 0;
 
-	// Threshold before we consider it a runaway per-frame loop
-	static const int MAX_FRAMES = 50000;
+    // Threshold before we consider it a runaway per-frame loop
+    static const int MAX_FRAMES = 50000;
 
-	// --------------------------------------------------------
-	// Per-frame update
-	// --------------------------------------------------------
-	override void EOnFrame(IEntity owner, float timeSlice)
-	{
-		s_GlobalLoopCounter++;
+    // ---------------------------------------------------------------------
+    // Per-frame update
+    // ---------------------------------------------------------------------
+    override void EOnFrame(IEntity owner, float timeSlice)
+    {
+        s_GlobalLoopCounter++;
 
-		if (s_GlobalLoopCounter > MAX_FRAMES)
-		{
-			// Simple console message so we can see it fired
-			PrintFormat(
-				"[CrashGuard][GlobalLoop] Frame limit hit (%1) – possible runaway per-frame script. FrameCount=%2",
-				MAX_FRAMES,
-				s_GlobalLoopCounter
-			);
+        // Hit the limit -> treat as possible runaway script
+        if (s_GlobalLoopCounter > MAX_FRAMES)
+        {
+            string reason = string.Format(
+                "Global EOnFrame frame limit hit (%1) - possible runaway per-frame script",
+                MAX_FRAMES
+            );
 
-			// Reset so we can detect another spike later
-			s_GlobalLoopCounter = 0;
+            // Summary line into CrashGuard.log (simple API)
+            // CrashGuard_LogGlobal(string context, string reason, int frameCount = 0);
+            CrashGuard_LogGlobal("GlobalLoop", reason, s_GlobalLoopCounter);
 
-			// Soft-stop: skip base EOnFrame on this frame
-			return;
-		}
+            // Optional CSI cleanup / validation hook
+            CSI_PlayerDataManager manager = CSI_PlayerDataManager.GetInstance();
+            if (manager)
+                manager.CheckPlayerDataValidity();
 
-		// Normal behaviour
-		super.EOnFrame(owner, timeSlice);
-	}
+            // Reset so we can detect another spike later
+            s_GlobalLoopCounter = 0;
 
-	// --------------------------------------------------------
-	// Optional helper – can be called from console/debug
-	// --------------------------------------------------------
-	static void ResetCounter()
-	{
-		s_GlobalLoopCounter = 0;
-	}
+            // Soft-stop: skip base EOnFrame this frame
+            return;
+        }
+
+        // Normal behaviour when not tripping the guard
+        super.EOnFrame(owner, timeSlice);
+    }
+
+    // ---------------------------------------------------------------------
+    // Optional helper if you ever want to reset from script/console
+    // ---------------------------------------------------------------------
+    static void ResetCounter()
+    {
+        s_GlobalLoopCounter = 0;
+    }
 }
