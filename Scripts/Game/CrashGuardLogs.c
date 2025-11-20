@@ -2,6 +2,7 @@
 // Core logging helpers used by CrashGuard, GlobalLoopGuard and CSI patches.
 // NOTE: We only use Print / PrintFormat so this works in both Workbench and
 // dedicated server without relying on OpenFile / FPrintln / CloseFile.
+// Developed for the Arma Reforger Community. 
 
 static const string CRASHGUARD_LOG_PATH = "$profile:CrashGuard.log"; // informational only
 
